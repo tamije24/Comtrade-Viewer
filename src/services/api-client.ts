@@ -1,5 +1,6 @@
 import axios from 'axios';
 
+// Change baseURL to the correct backend URL
 const apiClient = axios.create({
    //baseURL: 'http://127.0.0.1:8000/',
    baseURL: 'https://signal-analyser-prod-9dcd276c75aa.herokuapp.com/',
