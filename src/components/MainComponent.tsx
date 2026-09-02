@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import Grid from "@mui/material/Grid";
 
@@ -130,6 +130,7 @@ interface Props {
   navbarStatus: boolean;
   sidebarStatus: boolean;
   tooltipStatus: boolean;
+  initialProjectId: number | null;
 }
 
 const MainComponent = ({
@@ -137,6 +138,7 @@ const MainComponent = ({
   navbarStatus,
   sidebarStatus,
   tooltipStatus,
+  initialProjectId,
 }: Props) => {
   const [presentZoomValues, setPresentZoomValues] = useState([
     {
@@ -235,24 +237,41 @@ const MainComponent = ({
     setSelectedProject(project);
     setSelectedPage("ProjectDetails");
 
-    // Set components for toolbar
-    setNavigationHeader(project.line_name);
-    let navPages = [""];
-    navPages.pop();
-    project
-      ? project.files.length !== 0
-        ? project.files.map((file: ComtradeFile) =>
-            navPages.push(file.station_name)
-          )
-        : console.log("no files")
-      : console.log("no project!");
-    setNavigationPages(navPages);
-
-    // Reset merge view type
-    setSelectedMergeType("");
     // Get signals from backend
-    getSignalsFromBackend(project);
+    if (project.files[0].ia_channel != "") {
+      getSignalsFromBackend(project);
+
+      // Set components for toolbar
+      setNavigationHeader(project.line_name);
+      let navPages = [""];
+      navPages.pop();
+      project
+        ? project.files.length !== 0
+          ? project.files.map((file: ComtradeFile) =>
+              navPages.push(file.station_name)
+            )
+          : console.log("no files")
+        : console.log("no project!");
+      setNavigationPages(navPages);
+
+      // Reset merge view type
+      setSelectedMergeType("");
+    }
   };
+
+  useEffect(() => {
+    if (initialProjectId !== null && initialProjectId !== undefined) {
+      console.log("here");
+      projectService
+        .getProject(initialProjectId)
+        .then((res) => {
+          handleSelectProject(res.data);
+        })
+        .catch((err) => {
+          console.log(err.message);
+        });
+    }
+  }, [initialProjectId]);
 
   // const handleDeleteProject = () => {};
 
@@ -1260,6 +1279,12 @@ const MainComponent = ({
       });
   };
 
+  const handleUpdateChannels = () => {
+    // handleAddFiles();
+    // getSignalsFromBackend(selectedProject);
+    window.location.reload();
+  };
+
   return (
     <Grid
       container
@@ -1409,6 +1434,7 @@ const MainComponent = ({
           <ProjectDetails
             project={selectedProject}
             onAddFiles={handleAddFiles}
+            handleUpdateChannels={handleUpdateChannels}
           />
         )}
         {selectedPage === "ProjectSettings" && (

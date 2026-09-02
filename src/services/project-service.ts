@@ -22,6 +22,34 @@ export interface ProjectMin {
   notes: string;
 }
 
+interface ChannelList {
+  analog: string[][];
+  digital: string[][];
+}
+
+export interface FileChannelInfo {
+  file_id: number;
+  ia: string;
+  ib: string;
+  ic: string;
+  in: string;
+  va: string;
+  vb: string;
+  vc: string;
+  d1: string;
+  d2: string;
+  d3: string;
+  d4: string;
+  d5: string;
+  d6: string;
+  d7: string;
+  d8: string;
+  d9: string;
+  d10: string;
+  d11: string;
+  d12: string;
+}
+
 class ProjectService {
 
     getAllProjects() {
@@ -56,6 +84,16 @@ class ProjectService {
     updateProject(project: Project) {
       const endpoint = `/comtrade_reader/projects/${project.project_id}/`; 
       return apiClient.put(endpoint, project)
+    }
+
+    getChannelList(project_id: number) {
+      const endpoint = `/comtrade_reader/channels/${project_id}/`; 
+      return apiClient.get<ChannelList>(endpoint)
+    }
+
+    updateChannelList(project_id: number, channels:FileChannelInfo[]) {
+      const endpoint = `/comtrade_reader/update-channels/${project_id}/`; 
+      return apiClient.put(endpoint, channels)
     }
 }
 

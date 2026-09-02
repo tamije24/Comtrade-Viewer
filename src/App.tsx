@@ -69,9 +69,26 @@ function App() {
     "4000",
   ];
   const [currentUser, setCurrentUser] = useState({ id: 0, name: "" });
+  const [initialProjectId, setInitialProjectId] = useState<number | null>(null);
+
   const [pointCount, setPointCount] = useState<string | null>(displayPoints[0]);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const projectId = params.get("project_id");
+    const access_token: string = params.get("access_token") as string;
+    const refresh_token: string = params.get("refresh_token") as string;
+
+    if (projectId) {
+      setInitialProjectId(Number(projectId));
+      handleAccessCodeReceive({
+        access: access_token,
+        refresh: refresh_token,
+      });
+      // Remove the query parameter from the URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
     if (localStorage.getItem("token")) getUserData();
   }, []);
 
@@ -125,6 +142,7 @@ function App() {
               navbarStatus={navbarStatus}
               sidebarStatus={sidebarStatus}
               tooltipStatus={tooltipStatus}
+              initialProjectId={initialProjectId}
             />
           ) : (
             <SignIn onAccessCodeReceive={handleAccessCodeReceive} />
@@ -233,26 +251,6 @@ function App() {
                 />
               </BottomNavigation>
             </Grid>
-
-            {/* <Grid
-              item
-              xs={1}
-              sx={{
-                display: "flex",
-                justifyContent: "flex-end",
-                alignItems: "flex-end",
-                pr: 2,
-                pb: 1,
-                bgcolor: "",
-              }}
-            >
-            </Grid> */}
-            {/* <Grid item>
-              <ChromeReaderModeIcon />
-              <MicrowaveIcon />
-              <ViewArrayIcon />
-              <ViewSidebarIcon />
-            </Grid> */}
           </Grid>
         </Paper>
       </Box>

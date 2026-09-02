@@ -13,12 +13,11 @@ import AddLocationIcon from "@mui/icons-material/AddLocation";
 import PlaceSharpIcon from "@mui/icons-material/PlaceSharp";
 import CloseIcon from "@mui/icons-material/Close";
 
-import projectService, { Project } from "../services/project-service";
 import Grid from "@mui/material/Grid";
 import Grid2 from "@mui/material/Unstable_Grid2/Grid2";
 import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Stack from "@mui/material/Stack";
 import {
   Autocomplete,
@@ -44,6 +43,10 @@ import { GridColDef } from "@mui/x-data-grid/models/colDef";
 import comtradeFileService, {
   ComtradeFile,
 } from "../services/comtrade-file-service";
+import projectService, {
+  FileChannelInfo,
+  Project,
+} from "../services/project-service";
 
 let cfgfile_element: HTMLInputElement;
 let datfile_element: HTMLInputElement;
@@ -51,12 +54,26 @@ let datfile_element: HTMLInputElement;
 let signal_list: string[] = [];
 let digital_signal_list: { id: number; title: string }[] = [];
 
+// let new_signal_list: { value: number; label: string }[][] = [];
+// let new_digital_signal_list: { value: number; label: string }[][] = [];
+
+let new_signal_list: string[][] = [];
+let new_digital_signal_list: string[][] = [];
+
 interface Props {
   project: Project;
   onAddFiles: () => void;
+  handleUpdateChannels: () => void;
 }
 
-const ProjectDetails = ({ project, onAddFiles }: Props) => {
+const ProjectDetails = ({
+  project,
+  onAddFiles,
+  handleUpdateChannels,
+}: Props) => {
+  const [channelRequired, setChannelRequired] = useState(false);
+  const [channelLoading, setChannelLoading] = useState(false);
+
   const [error, setError] = useState(false);
   const [formDirty, setFormDirty] = useState(false);
   const [linenameError, setLinenameError] = useState(false);
@@ -150,6 +167,69 @@ const ProjectDetails = ({ project, onAddFiles }: Props) => {
     id: number;
     title: string;
   } | null>(null);
+
+  if (!project) {
+    console.log("no project");
+    return (
+      <Card
+        sx={{
+          mt: 10,
+          ml: 2,
+          mb: 0.5,
+        }}
+      >
+        <CardHeader
+          avatar={
+            <Avatar sx={{ m: 1, bgcolor: "secondary.main" }}>
+              <BarChartIcon />
+            </Avatar>
+          }
+          title="Project not selected"
+          subheader={
+            <Typography sx={{ fontSize: 12 }}>
+              Please select a project to view / edit details
+            </Typography>
+          }
+          sx={{ paddingBottom: 0.5, height: 80, borderBottom: 0.5 }}
+        />
+        <CardContent sx={{ height: "300px" }} />
+      </Card>
+    );
+  }
+
+  useEffect(() => {
+    // console.log("use effect");
+    let file: ComtradeFile;
+    file = project.files[0];
+    if (file.ia_channel != "") return;
+
+    setChannelRequired(true);
+    setChannelLoading(true);
+
+    projectService
+      .getChannelList(project.project_id)
+      .then((res) => {
+        res.data.analog.forEach((channels) => {
+          let temp_list: string[] = [];
+          channels.forEach((channel) => {
+            temp_list.push(channel);
+          });
+          new_signal_list.push(temp_list);
+        });
+
+        res.data.digital.forEach((channels) => {
+          let temp_list: string[] = [];
+          channels.forEach((channel) => {
+            temp_list.push(channel);
+          });
+          new_digital_signal_list.push(temp_list);
+        });
+        setChannelLoading(false);
+      })
+      .catch((err) => {
+        console.log(err.message);
+      });
+  }, []);
 
   const ReadCfgFIle = () => {
     if (cfgfile_element.files === null) return;
@@ -338,6 +418,19 @@ const ProjectDetails = ({ project, onAddFiles }: Props) => {
   const handleOk = () => {
     handleFileDelete(selectedRow);
     setOpen(false);
+  };
+
+  const handleChannelSelected = (rows: FileChannelInfo[]) => {
+    projectService
+      .updateChannelList(project.project_id, rows)
+      .then((res) => {
+        console.log(`Project with ID ${res.data["project_id"]} updated!`);
+        setChannelRequired(false);
+        handleUpdateChannels();
+      })
+      .catch((err) => {
+        console.log(err.message);
+      });
   };
 
   const validateInputs = () => {
@@ -1486,34 +1579,6 @@ const ProjectDetails = ({ project, onAddFiles }: Props) => {
       digital_signal_list.pop();
   };
 
-  if (!project) {
-    return (
-      <Card
-        sx={{
-          mt: 10,
-          ml: 2,
-          mb: 0.5,
-        }}
-      >
-        <CardHeader
-          avatar={
-            <Avatar sx={{ m: 1, bgcolor: "secondary.main" }}>
-              <BarChartIcon />
-            </Avatar>
-          }
-          title="Project not selected"
-          subheader={
-            <Typography sx={{ fontSize: 12 }}>
-              Please select a project to view / edit details
-            </Typography>
-          }
-          sx={{ paddingBottom: 0.5, height: 80, borderBottom: 0.5 }}
-        />
-        <CardContent sx={{ height: "300px" }} />
-      </Card>
-    );
-  }
-
   return (
     <>
       <Card
@@ -1663,29 +1728,46 @@ const ProjectDetails = ({ project, onAddFiles }: Props) => {
           title="Related Stations"
           subheader={
             <Typography sx={{ fontSize: 12 }}>
-              Select files and click on Add Station to add stations to this
-              project
+              {channelRequired
+                ? ""
+                : "Select files and click on Add Station to add stations to this project"}
             </Typography>
           }
           sx={{ paddingBottom: 1, height: 60, borderBottom: 0.5 }}
           action={
-            <Button
-              variant="contained"
-              size="small"
-              startIcon={<AddLocationIcon />}
-              sx={{ ml: 0 }}
-              onClick={() => {
-                setAddStationVisible(true);
-                setSelectedRow(-1);
-              }}
-              color="success"
-            >
-              Add Station
-            </Button>
+            channelRequired ? (
+              ""
+            ) : (
+              <Button
+                variant="contained"
+                size="small"
+                startIcon={<AddLocationIcon />}
+                sx={{ ml: 0 }}
+                onClick={() => {
+                  setAddStationVisible(true);
+                  setSelectedRow(-1);
+                }}
+                color="success"
+              >
+                Add Station
+              </Button>
+            )
           }
         />
-        {!addStationVisible && <ListStationDetails />}
-        {addStationVisible && <FileAddForm />}
+        {channelLoading ? (
+          <>Loading ...</>
+        ) : channelRequired ? (
+          <AddChannelsForm
+            project={project}
+            new_signal_list={new_signal_list}
+            new_digital_signal_list={new_digital_signal_list}
+            handleChannelSelected={handleChannelSelected}
+          />
+        ) : addStationVisible ? (
+          <FileAddForm />
+        ) : (
+          <ListStationDetails />
+        )}
       </Card>
     </>
   );
@@ -1703,3 +1785,942 @@ const VisuallyHiddenInput = styled("input")({
   whiteSpace: "nowrap",
   width: 1,
 });
+
+interface NewChannelInfo {
+  id: number;
+  file_id: number;
+  station: string;
+  start_time: string;
+  trigger_time: string;
+  ia: string;
+  ib: string;
+  ic: string;
+  in: string;
+  va: string;
+  vb: string;
+  vc: string;
+  d1: string;
+  d2: string;
+  d3: string;
+  d4: string;
+  d5: string;
+  d6: string;
+  d7: string;
+  d8: string;
+  d9: string;
+  d10: string;
+  d11: string;
+  d12: string;
+}
+
+interface AnalogChannelSelection {
+  id: number;
+  ia: string;
+  ib: string;
+  ic: string;
+  in: string;
+  va: string;
+  vb: string;
+  vc: string;
+}
+
+interface DigitalChannelSelection {
+  id: number;
+  d1: string;
+  d2: string;
+  d3: string;
+  d4: string;
+  d5: string;
+  d6: string;
+  d7: string;
+  d8: string;
+  d9: string;
+  d10: string;
+  d11: string;
+  d12: string;
+}
+
+interface AddChannelFormProps {
+  project: Project;
+  new_signal_list: string[][];
+  new_digital_signal_list: string[][];
+  handleChannelSelected: (updated_channels: FileChannelInfo[]) => void;
+}
+
+const AddChannelsForm = ({
+  project,
+  new_signal_list,
+  new_digital_signal_list,
+  handleChannelSelected,
+}: AddChannelFormProps) => {
+  const [rows, setRows] = useState<NewChannelInfo[]>([]);
+  const [channelError, setChannelError] = useState(false);
+  const [channelErrorMessage, setChannelErrorMessage] = useState("");
+
+  let columns: GridColDef<(typeof rows)[number]>[] = [
+    { field: "id", headerName: "S.N.", width: 60 },
+    {
+      field: "station",
+      headerName: "STATION",
+      description: "Station Name",
+      sortable: false,
+      headerClassName: "MuiDataGridPro-columnHeader--alignCenter",
+      headerAlign: "left",
+      align: "left",
+      minWidth: 100,
+      width: 100,
+    },
+    {
+      field: "start_time",
+      // type: "dateTime",
+      // valueGetter: (value) => value && new Date(value),
+      headerName: "Start Time",
+      description: "Record Start Time",
+      sortable: false,
+      headerClassName: "MuiDataGridPro-columnHeader--alignCenter",
+      headerAlign: "center",
+      align: "left",
+      //   minWidth: 70,
+      width: 180,
+    },
+    {
+      field: "trigger_time",
+      // type: "dateTime",
+      // valueGetter: (value) => value && new Date(value),
+      headerName: "Trigger Time",
+      description: "Record Trigger Time",
+      sortable: false,
+      headerClassName: "MuiDataGridPro-columnHeader--alignCenter",
+      headerAlign: "center",
+      align: "left",
+      //   minWidth: 70,
+      width: 180,
+    },
+    {
+      field: "ia",
+      headerName: "IA-Channel",
+      description: "Ia - Channel Name",
+      // sortable: false,
+      headerClassName: "MuiDataGridPro-columnHeader--alignCenter",
+      headerAlign: "left",
+      align: "left",
+      width: 100,
+      editable: true,
+      type: "singleSelect",
+      valueOptions: (params) => {
+        let id = params?.row?.id === undefined ? 0 : params?.row.id - 1;
+
+        if (id === 0) {
+          return [...new_signal_list[0]];
+        }
+
+        if (id === 1) {
+          return [...new_signal_list[1]];
+        }
+
+        if (id === 2) {
+          return [...new_signal_list[2]];
+        }
+
+        return [];
+      },
+    },
+    {
+      field: "ib",
+      headerName: "IB-Channel",
+      description: "Ib - Channel Name",
+      // sortable: false,
+      headerClassName: "MuiDataGridPro-columnHeader--alignCenter",
+      headerAlign: "left",
+      align: "left",
+      width: 100,
+      editable: true,
+      type: "singleSelect",
+      valueOptions: (params) => {
+        let id = params?.row?.id === undefined ? 0 : params?.row.id - 1;
+
+        if (id === 0) {
+          return [...new_signal_list[0]];
+        }
+
+        if (id === 1) {
+          return [...new_signal_list[1]];
+        }
+
+        if (id === 2) {
+          return [...new_signal_list[2]];
+        }
+
+        return [];
+      },
+    },
+    {
+      field: "ic",
+      headerName: "IC-Channel",
+      description: "Ic - Channel Name",
+      // sortable: false,
+      headerClassName: "MuiDataGridPro-columnHeader--alignCenter",
+      headerAlign: "left",
+      align: "left",
+      width: 100,
+      editable: true,
+      type: "singleSelect",
+      valueOptions: (params) => {
+        let id = params?.row?.id === undefined ? 0 : params?.row.id - 1;
+
+        if (id === 0) {
+          return [...new_signal_list[0]];
+        }
+
+        if (id === 1) {
+          return [...new_signal_list[1]];
+        }
+
+        if (id === 2) {
+          return [...new_signal_list[2]];
+        }
+
+        return [];
+      },
+    },
+    {
+      field: "in",
+      headerName: "IN-Channel",
+      description: "In - Channel Name",
+      // sortable: false,
+      headerClassName: "MuiDataGridPro-columnHeader--alignCenter",
+      headerAlign: "left",
+      align: "left",
+      width: 100,
+      editable: true,
+      type: "singleSelect",
+      valueOptions: (params) => {
+        let id = params?.row?.id === undefined ? 0 : params?.row.id - 1;
+
+        if (id === 0) {
+          return [...new_signal_list[0]];
+        }
+
+        if (id === 1) {
+          return [...new_signal_list[1]];
+        }
+
+        if (id === 2) {
+          return [...new_signal_list[2]];
+        }
+
+        return [];
+      },
+    },
+    {
+      field: "va",
+      headerName: "VA-Channel",
+      description: "Va - Channel Name",
+      // sortable: false,
+      headerClassName: "MuiDataGridPro-columnHeader--alignCenter",
+      headerAlign: "left",
+      align: "left",
+      width: 100,
+      editable: true,
+      type: "singleSelect",
+      valueOptions: (params) => {
+        let id = params?.row?.id === undefined ? 0 : params?.row.id - 1;
+
+        if (id === 0) {
+          return [...new_signal_list[0]];
+        }
+
+        if (id === 1) {
+          return [...new_signal_list[1]];
+        }
+
+        if (id === 2) {
+          return [...new_signal_list[2]];
+        }
+
+        return [];
+      },
+    },
+    {
+      field: "vb",
+      headerName: "VB-Channel",
+      description: "Vb - Channel Name",
+      // sortable: false,
+      headerClassName: "MuiDataGridPro-columnHeader--alignCenter",
+      headerAlign: "left",
+      align: "left",
+      width: 100,
+      editable: true,
+      type: "singleSelect",
+      valueOptions: (params) => {
+        let id = params?.row?.id === undefined ? 0 : params?.row.id - 1;
+
+        if (id === 0) {
+          return [...new_signal_list[0]];
+        }
+
+        if (id === 1) {
+          return [...new_signal_list[1]];
+        }
+
+        if (id === 2) {
+          return [...new_signal_list[2]];
+        }
+
+        return [];
+      },
+    },
+    {
+      field: "vc",
+      headerName: "VC-Channel",
+      description: "Vc - Channel Name",
+      // sortable: false,
+      headerClassName: "MuiDataGridPro-columnHeader--alignCenter",
+      headerAlign: "left",
+      align: "left",
+      width: 100,
+      editable: true,
+      type: "singleSelect",
+      valueOptions: (params) => {
+        let id = params?.row?.id === undefined ? 0 : params?.row.id - 1;
+
+        if (id === 0) {
+          return [...new_signal_list[0]];
+        }
+
+        if (id === 1) {
+          return [...new_signal_list[1]];
+        }
+
+        if (id === 2) {
+          return [...new_signal_list[2]];
+        }
+
+        return [];
+      },
+    },
+    {
+      field: "d1",
+      headerName: "D1-Channel",
+      description: "D1 - Channel Name",
+      // sortable: false,
+      headerClassName: "MuiDataGridPro-columnHeader--alignCenter",
+      headerAlign: "left",
+      align: "left",
+      width: 100,
+      editable: true,
+      type: "singleSelect",
+      valueOptions: (params) => {
+        let id = params?.row?.id === undefined ? 0 : params?.row.id - 1;
+
+        if (id === 0) {
+          return [...new_digital_signal_list[0]];
+        }
+
+        if (id === 1) {
+          return [...new_digital_signal_list[1]];
+        }
+
+        if (id === 2) {
+          return [...new_digital_signal_list[2]];
+        }
+
+        return [];
+      },
+    },
+    {
+      field: "d2",
+      headerName: "D2-Channel",
+      description: "D2 - Channel Name",
+      // sortable: false,
+      headerClassName: "MuiDataGridPro-columnHeader--alignCenter",
+      headerAlign: "left",
+      align: "left",
+      width: 100,
+      editable: true,
+      type: "singleSelect",
+      valueOptions: (params) => {
+        let id = params?.row?.id === undefined ? 0 : params?.row.id - 1;
+
+        if (id === 0) {
+          return [...new_digital_signal_list[0]];
+        }
+
+        if (id === 1) {
+          return [...new_digital_signal_list[1]];
+        }
+
+        if (id === 2) {
+          return [...new_digital_signal_list[2]];
+        }
+
+        return [];
+      },
+    },
+    {
+      field: "d3",
+      headerName: "D3-Channel",
+      description: "D3 - Channel Name",
+      // sortable: false,
+      headerClassName: "MuiDataGridPro-columnHeader--alignCenter",
+      headerAlign: "left",
+      align: "left",
+      width: 100,
+      editable: true,
+      type: "singleSelect",
+      valueOptions: (params) => {
+        let id = params?.row?.id === undefined ? 0 : params?.row.id - 1;
+
+        if (id === 0) {
+          return [...new_digital_signal_list[0]];
+        }
+
+        if (id === 1) {
+          return [...new_digital_signal_list[1]];
+        }
+
+        if (id === 2) {
+          return [...new_digital_signal_list[2]];
+        }
+
+        return [];
+      },
+    },
+    {
+      field: "d4",
+      headerName: "D4-Channel",
+      description: "D4 - Channel Name",
+      // sortable: false,
+      headerClassName: "MuiDataGridPro-columnHeader--alignCenter",
+      headerAlign: "left",
+      align: "left",
+      width: 100,
+      editable: true,
+      type: "singleSelect",
+      valueOptions: (params) => {
+        let id = params?.row?.id === undefined ? 0 : params?.row.id - 1;
+
+        if (id === 0) {
+          return [...new_digital_signal_list[0]];
+        }
+
+        if (id === 1) {
+          return [...new_digital_signal_list[1]];
+        }
+
+        if (id === 2) {
+          return [...new_digital_signal_list[2]];
+        }
+
+        return [];
+      },
+    },
+    {
+      field: "d5",
+      headerName: "D5-Channel",
+      description: "D5 - Channel Name",
+      // sortable: false,
+      headerClassName: "MuiDataGridPro-columnHeader--alignCenter",
+      headerAlign: "left",
+      align: "left",
+      width: 100,
+      editable: true,
+      type: "singleSelect",
+      valueOptions: (params) => {
+        let id = params?.row?.id === undefined ? 0 : params?.row.id - 1;
+
+        if (id === 0) {
+          return [...new_digital_signal_list[0]];
+        }
+
+        if (id === 1) {
+          return [...new_digital_signal_list[1]];
+        }
+
+        if (id === 2) {
+          return [...new_digital_signal_list[2]];
+        }
+
+        return [];
+      },
+    },
+    {
+      field: "d6",
+      headerName: "D6-Channel",
+      description: "D6 - Channel Name",
+      // sortable: false,
+      headerClassName: "MuiDataGridPro-columnHeader--alignCenter",
+      headerAlign: "left",
+      align: "left",
+      width: 100,
+      editable: true,
+      type: "singleSelect",
+      valueOptions: (params) => {
+        let id = params?.row?.id === undefined ? 0 : params?.row.id - 1;
+
+        if (id === 0) {
+          return [...new_digital_signal_list[0]];
+        }
+
+        if (id === 1) {
+          return [...new_digital_signal_list[1]];
+        }
+
+        if (id === 2) {
+          return [...new_digital_signal_list[2]];
+        }
+
+        return [];
+      },
+    },
+    {
+      field: "d7",
+      headerName: "D7-Channel",
+      description: "D7 - Channel Name",
+      // sortable: false,
+      headerClassName: "MuiDataGridPro-columnHeader--alignCenter",
+      headerAlign: "left",
+      align: "left",
+      width: 100,
+      editable: true,
+      type: "singleSelect",
+      valueOptions: (params) => {
+        let id = params?.row?.id === undefined ? 0 : params?.row.id - 1;
+
+        if (id === 0) {
+          return [...new_digital_signal_list[0]];
+        }
+
+        if (id === 1) {
+          return [...new_digital_signal_list[1]];
+        }
+
+        if (id === 2) {
+          return [...new_digital_signal_list[2]];
+        }
+
+        return [];
+      },
+    },
+    {
+      field: "d8",
+      headerName: "D8-Channel",
+      description: "D8 - Channel Name",
+      // sortable: false,
+      headerClassName: "MuiDataGridPro-columnHeader--alignCenter",
+      headerAlign: "left",
+      align: "left",
+      width: 100,
+      editable: true,
+      type: "singleSelect",
+      valueOptions: (params) => {
+        let id = params?.row?.id === undefined ? 0 : params?.row.id - 1;
+
+        if (id === 0) {
+          return [...new_digital_signal_list[0]];
+        }
+
+        if (id === 1) {
+          return [...new_digital_signal_list[1]];
+        }
+
+        if (id === 2) {
+          return [...new_digital_signal_list[2]];
+        }
+
+        return [];
+      },
+    },
+    {
+      field: "d9",
+      headerName: "D9-Channel",
+      description: "D9 - Channel Name",
+      // sortable: false,
+      headerClassName: "MuiDataGridPro-columnHeader--alignCenter",
+      headerAlign: "left",
+      align: "left",
+      width: 100,
+      editable: true,
+      type: "singleSelect",
+      valueOptions: (params) => {
+        let id = params?.row?.id === undefined ? 0 : params?.row.id - 1;
+
+        if (id === 0) {
+          return [...new_digital_signal_list[0]];
+        }
+
+        if (id === 1) {
+          return [...new_digital_signal_list[1]];
+        }
+
+        if (id === 2) {
+          return [...new_digital_signal_list[2]];
+        }
+
+        return [];
+      },
+    },
+    {
+      field: "d10",
+      headerName: "D10-Channel",
+      description: "D10 - Channel Name",
+      // sortable: false,
+      headerClassName: "MuiDataGridPro-columnHeader--alignCenter",
+      headerAlign: "left",
+      align: "left",
+      width: 100,
+      editable: true,
+      type: "singleSelect",
+      valueOptions: (params) => {
+        let id = params?.row?.id === undefined ? 0 : params?.row.id - 1;
+
+        if (id === 0) {
+          return [...new_digital_signal_list[0]];
+        }
+
+        if (id === 1) {
+          return [...new_digital_signal_list[1]];
+        }
+
+        if (id === 2) {
+          return [...new_digital_signal_list[2]];
+        }
+
+        return [];
+      },
+    },
+    {
+      field: "d11",
+      headerName: "D11-Channel",
+      description: "D11 - Channel Name",
+      // sortable: false,
+      headerClassName: "MuiDataGridPro-columnHeader--alignCenter",
+      headerAlign: "left",
+      align: "left",
+      width: 100,
+      editable: true,
+      type: "singleSelect",
+      valueOptions: (params) => {
+        let id = params?.row?.id === undefined ? 0 : params?.row.id - 1;
+
+        if (id === 0) {
+          return [...new_digital_signal_list[0]];
+        }
+
+        if (id === 1) {
+          return [...new_digital_signal_list[1]];
+        }
+
+        if (id === 2) {
+          return [...new_digital_signal_list[2]];
+        }
+
+        return [];
+      },
+    },
+    {
+      field: "d12",
+      headerName: "D12-Channel",
+      description: "D12 - Channel Name",
+      // sortable: false,
+      headerClassName: "MuiDataGridPro-columnHeader--alignCenter",
+      headerAlign: "left",
+      align: "left",
+      width: 100,
+      editable: true,
+      type: "singleSelect",
+      valueOptions: (params) => {
+        let id = params?.row?.id === undefined ? 0 : params?.row.id - 1;
+
+        if (id === 0) {
+          return [...new_digital_signal_list[0]];
+        }
+
+        if (id === 1) {
+          return [...new_digital_signal_list[1]];
+        }
+
+        if (id === 2) {
+          return [...new_digital_signal_list[2]];
+        }
+
+        return [];
+      },
+    },
+  ];
+
+  useEffect(() => {
+    let file: ComtradeFile;
+    let tempTable: NewChannelInfo[] = [];
+
+    for (let i = 0; i < project.files.length; i++) {
+      file = project.files[i];
+      tempTable.push({
+        id: i + 1,
+        file_id: file.file_id,
+        station: file.station_name,
+        start_time: String(file.start_time_stamp),
+        trigger_time: String(file.trigger_time_stamp),
+        ia: "",
+        ib: "",
+        ic: "",
+        in: "",
+        va: "",
+        vb: "",
+        vc: "",
+        d1: "",
+        d2: "",
+        d3: "",
+        d4: "",
+        d5: "",
+        d6: "",
+        d7: "",
+        d8: "",
+        d9: "",
+        d10: "",
+        d11: "",
+        d12: "",
+      });
+    }
+    setRows(tempTable);
+  }, [new_signal_list.length]);
+
+  if (rows.length === 0) {
+    return (
+      <Typography
+        sx={{
+          fontSize: 13,
+          color: "primary.main",
+        }}
+      >
+        Loading ....
+      </Typography>
+    );
+  }
+
+  const handleSave = () => {
+    // Check if all required channels have been selected.
+    let error = false;
+    let updated_channels: FileChannelInfo[] = [];
+    for (let i = 0; i < rows.length; i++) {
+      let row = rows[i];
+      if (
+        row.ia == "" ||
+        row.ib == "" ||
+        row.ic == "" ||
+        row.in == "" ||
+        row.va == "" ||
+        row.vb == "" ||
+        row.vc == ""
+      ) {
+        error = true;
+        setChannelError(true);
+        setChannelErrorMessage(
+          "Please select all the required analog channels before pressing save."
+        );
+        break;
+      }
+
+      let analogChannelSelection: AnalogChannelSelection = {
+        id: 1,
+        ia: row.ia,
+        ib: row.ib,
+        ic: row.ic,
+        in: row.in,
+        va: row.va,
+        vb: row.vb,
+        vc: row.vc,
+      };
+
+      if (hasDuplicateAnalogChannels(analogChannelSelection)) {
+        error = true;
+        setChannelError(true);
+        setChannelErrorMessage("Duplicate analog channels selected");
+        break;
+      }
+
+      let digitalChannelSelection: DigitalChannelSelection = {
+        id: 1,
+        d1: row.d1,
+        d2: row.d2,
+        d3: row.d3,
+        d4: row.d4,
+        d5: row.d5,
+        d6: row.d6,
+        d7: row.d7,
+        d8: row.d8,
+        d9: row.d9,
+        d10: row.d10,
+        d11: row.d11,
+        d12: row.d12,
+      };
+
+      if (hasDuplicateDigitalChannels(digitalChannelSelection)) {
+        error = true;
+        setChannelError(true);
+        setChannelErrorMessage("Duplicate analog channels selected");
+        break;
+      }
+
+      updated_channels.push({
+        file_id: row.file_id,
+        ia: row.ia,
+        ib: row.ib,
+        ic: row.ic,
+        in: row.in,
+        va: row.va,
+        vb: row.vb,
+        vc: row.vc,
+        d1: row.d1,
+        d2: row.d2,
+        d3: row.d3,
+        d4: row.d4,
+        d5: row.d5,
+        d6: row.d6,
+        d7: row.d7,
+        d8: row.d8,
+        d9: row.d9,
+        d10: row.d10,
+        d11: row.d11,
+        d12: row.d12,
+      });
+    }
+    if (!error) {
+      setChannelError(true);
+      setChannelErrorMessage(
+        "Updating database .. this may take a while depending on the file size. Please wait"
+      );
+      handleChannelSelected(updated_channels);
+    }
+  };
+
+  const handleProcessRowUpdate = (newRow: NewChannelInfo) => {
+    // Update local React state so the grid reflects the change
+    setRows((prevRows) =>
+      prevRows.map((row) => (row.id === newRow.id ? newRow : row))
+    );
+    // Return newRow to commit changes to the table state
+    return newRow;
+  };
+
+  const hasDuplicateAnalogChannels = (
+    channels: AnalogChannelSelection
+  ): boolean => {
+    const values = [
+      channels.ia,
+      channels.ib,
+      channels.ic,
+      channels.in,
+      channels.va,
+      channels.vb,
+      channels.vc,
+    ].filter((value) => value.trim() !== ""); // Ignore empty selections
+
+    return values.length !== new Set(values).size;
+  };
+
+  const hasDuplicateDigitalChannels = (
+    channels: DigitalChannelSelection
+  ): boolean => {
+    const values = [
+      channels.d1,
+      channels.d2,
+      channels.d3,
+      channels.d4,
+      channels.d5,
+      channels.d6,
+      channels.d7,
+      channels.d8,
+      channels.d9,
+      channels.d10,
+      channels.d11,
+      channels.d12,
+    ].filter((value) => value.trim() !== ""); // Ignore empty selections
+
+    return values.length !== new Set(values).size;
+  };
+
+  return (
+    <Card
+      sx={{
+        mt: 0,
+        ml: 0,
+        mb: 0,
+        pt: 0,
+      }}
+    >
+      <CardHeader
+        sx={{
+          m: 0,
+          pt: 1,
+          pl: 2,
+          pb: 1,
+          borderBottom: 0.5,
+          // bgcolor: "red",
+        }}
+        avatar={
+          <Avatar sx={{ m: 1, bgcolor: "orchid" }}>
+            <AddLocationIcon />
+          </Avatar>
+        }
+        title="Select Current and Voltage Channels"
+        subheader={
+          <Typography
+            sx={{
+              fontSize: 13,
+              color: channelError ? "error.main" : "success.main",
+            }}
+          >
+            {channelError
+              ? channelErrorMessage
+              : "Select the current and voltage channels from the drop down"}
+          </Typography>
+        }
+        action={
+          <Stack
+            display="flex"
+            alignItems="center"
+            direction="row"
+            spacing={2}
+            sx={{ ml: 4, mt: 1, mb: 0 }}
+          >
+            <Button
+              size="small"
+              variant="contained"
+              // disabled={!cfgSelected || !datSelected}
+              // endIcon={<FileUploadIcon />}
+              color="primary"
+              sx={{ mt: 1 }}
+              onClick={handleSave}
+            >
+              <Typography variant="caption">Save</Typography>
+            </Button>
+          </Stack>
+        }
+      />
+      <CardContent sx={{ bgcolor: "", pl: 4 }}>
+        <DataGridPro
+          rows={rows}
+          columns={columns}
+          hideFooterRowCount
+          checkboxSelection={false}
+          //disableRowSelectionOnClick
+          showCellVerticalBorder={true}
+          showColumnVerticalBorder={true}
+          disableColumnMenu={true}
+          // rowHeight={60}
+          density={"compact"}
+          // slots={{ toolbar: CustomToolbar }}
+          sx={{
+            width: "100%",
+            height: "100%",
+            fontSize: "0.7rem",
+          }}
+          hideFooter={true}
+          processRowUpdate={handleProcessRowUpdate}
+          // onRowClick={onRowSelect}
+        />
+      </CardContent>
+    </Card>
+  );
+};
