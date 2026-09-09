@@ -584,7 +584,7 @@ const SequencePolarPlotAndTable = ({
     });
 
     // extract phase values
-    let temp_suffix = signal_id[station * 7 + 0].at(-1);
+    let temp_suffix = signal_id[station * 7 + 0].slice(-1);
     let Ia = complex({
       r: magnitudes_original[station * 7 + 0],
       phi: angles_original[station * 7 + 0],
