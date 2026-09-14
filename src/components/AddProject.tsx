@@ -42,7 +42,9 @@ const AddProject = ({ onAddProject }: Props) => {
 
     projectService
       .createProject(project)
-      .then(({ data: savedProject }) => onAddProject(savedProject))
+      .then(({ data: savedProject }) => {
+        onAddProject(savedProject);
+      })
       .catch((err) => {
         setError(err.message);
       });

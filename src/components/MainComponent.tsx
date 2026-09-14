@@ -238,6 +238,9 @@ const MainComponent = ({
     setSelectedPage("ProjectDetails");
 
     // Get signals from backend
+
+    if (project.files.length == 0) return;
+
     if (project.files[0].ia_channel != "") {
       getSignalsFromBackend(project);
 

@@ -200,6 +200,9 @@ const ProjectDetails = ({
   useEffect(() => {
     // console.log("use effect");
     let file: ComtradeFile;
+
+    if (project.files.length == 0) return;
+
     file = project.files[0];
     if (file.ia_channel != "") return;
 
